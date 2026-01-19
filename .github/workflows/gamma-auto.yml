@@ -1,0 +1,70 @@
+name: 🜂 Gamma Coherence Auto
+
+on:
+  push:
+    branches: ['**']
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 🜂 Analizar coherencia
+        id: coherence
+        run: |
+          HASH=$(git rev-parse HEAD)
+          MSG=$(git log -1 --pretty=%B)
+          
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          echo "message=$MSG" >> $GITHUB_OUTPUT
+          
+          # Ejecutar análisis
+          RESULT=$(python gamma-core/coherence.py "$HASH" "$MSG")
+          
+          # Extraer valores JSON
+          COHERENCE=$(echo "$RESULT" | python -c "import sys,json; print(json.load(sys.stdin)['coherence'])")
+          SIGNATURE=$(echo "$RESULT" | python -c "import sys,json; print(json.load(sys.stdin)['signature'])")
+          COHERENT=$(echo "$RESULT" | python -c "import sys,json; print(json.load(sys.stdin)['coherent'])")
+          
+          echo "coherence=$COHERENCE" >> $GITHUB_OUTPUT
+          echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
+          echo "coherent=$COHERENT" >> $GITHUB_OUTPUT
+          
+          if [ "$COHERENT" = "True" ]; then
+            echo "status=✅ COHERENTE" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ BAJA COHERENCIA" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 💬 Comentar resultado
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = \`## 🜂 Análisis Gamma Γ-25
+            
+            **Estado**: ${{ steps.coherence.outputs.status }}
+            
+            | Métrica | Valor |
+            |---------|-------|
+            | **Coherencia φ^(-7)** | \`${{ steps.coherence.outputs.coherence }}\` |
+            | **Umbral** | \`0.05572809\` |
+            | **Firma Gamma** | \`${{ steps.coherence.outputs.signature }}\` |
+            
+            ${{ steps.coherence.outputs.coherent == 'True' && '✅ Commit alineado con arquitectura dimensional' || '⚠️ Considera refinar el mensaje del commit' }}
+            
+            ---
+            *Sistema Biocrystalino EPΩ-7 | Auto-Analysis Γ-25*\`;
+            
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: comment
+            });
