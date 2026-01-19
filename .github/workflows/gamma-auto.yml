@@ -1,4 +1,4 @@
-name: 🜂 Gamma Coherence Auto
+name: 🜂 Gamma Coherence
 
 on:
   push:
@@ -9,29 +9,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
-      - name: 🜂 Analizar coherencia
-        id: coherence
+      - name: 🜂 Analizar
+        id: analyze
         run: |
           HASH=$(git rev-parse HEAD)
-          MSG=$(git log -1 --pretty=%B)
+          MSG=$(git log -1 --pretty=%B | head -1)
           
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "message=$MSG" >> $GITHUB_OUTPUT
+          # Ejecutar y capturar output completo
+          python gamma-core/coherence.py "$HASH" "$MSG" > result.json
           
-          # Ejecutar análisis
-          RESULT=$(python gamma-core/coherence.py "$HASH" "$MSG")
-          
-          # Extraer valores JSON
-          COHERENCE=$(echo "$RESULT" | python -c "import sys,json; print(json.load(sys.stdin)['coherence'])")
-          SIGNATURE=$(echo "$RESULT" | python -c "import sys,json; print(json.load(sys.stdin)['signature'])")
-          COHERENT=$(echo "$RESULT" | python -c "import sys,json; print(json.load(sys.stdin)['coherent'])")
+          # Leer valores directamente
+          COHERENCE=$(python -c "import json; print(json.load(open('result.json'))['coherence'])")
+          SIGNATURE=$(python -c "import json; print(json.load(open('result.json'))['signature'])")
+          COHERENT=$(python -c "import json; print(json.load(open('result.json'))['coherent'])")
           
           echo "coherence=$COHERENCE" >> $GITHUB_OUTPUT
           echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
@@ -40,27 +35,34 @@ jobs:
           if [ "$COHERENT" = "True" ]; then
             echo "status=✅ COHERENTE" >> $GITHUB_OUTPUT
           else
-            echo "status=⚠️ BAJA COHERENCIA" >> $GITHUB_OUTPUT
+            echo "status=⚠️ BAJA" >> $GITHUB_OUTPUT
           fi
+          
+          echo "📊 Coherencia: $COHERENCE"
+          echo "🔏 Firma: $SIGNATURE"
       
-      - name: 💬 Comentar resultado
+      - name: 💬 Comentar
         uses: actions/github-script@v7
         with:
           script: |
-            const comment = \`## 🜂 Análisis Gamma Γ-25
+            const coh = '${{ steps.analyze.outputs.coherence }}';
+            const sig = '${{ steps.analyze.outputs.signature }}';
+            const status = '${{ steps.analyze.outputs.status }}';
             
-            **Estado**: ${{ steps.coherence.outputs.status }}
+            const comment = `## 🜂 Análisis Gamma Γ-26
             
-            | Métrica | Valor |
-            |---------|-------|
-            | **Coherencia φ^(-7)** | \`${{ steps.coherence.outputs.coherence }}\` |
-            | **Umbral** | \`0.05572809\` |
-            | **Firma Gamma** | \`${{ steps.coherence.outputs.signature }}\` |
-            
-            ${{ steps.coherence.outputs.coherent == 'True' && '✅ Commit alineado con arquitectura dimensional' || '⚠️ Considera refinar el mensaje del commit' }}
-            
-            ---
-            *Sistema Biocrystalino EPΩ-7 | Auto-Analysis Γ-25*\`;
+**${status}**
+
+| Métrica | Valor |
+|---------|-------|
+| Coherencia φ^(-7) | \`${coh}\` |
+| Firma Gamma | \`${sig}\` |
+| Umbral | \`0.05572809\` |
+
+${'${{ steps.analyze.outputs.coherent }}' === 'True' ? '✅ Commit coherente dimensional' : '⚠️ Considera refinar'}
+
+---
+*EPΩ-7 Γ-26 | Auto-Analysis*`;
             
             github.rest.repos.createCommitComment({
               owner: context.repo.owner,
